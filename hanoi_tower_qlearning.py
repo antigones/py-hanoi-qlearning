@@ -46,9 +46,6 @@ class HanoiTowerQLearning:
 
     def train(self, verbose=False):
 
-        possible_initial_states = set()
-        possible_initial_states.add(str(self.start_state))
-
         GAMMA = self.gamma
         GOAL_STATE = self.goal_state
         MAX_EPISODES = self.max_episodes
@@ -75,8 +72,8 @@ class HanoiTowerQLearning:
                     rewards[initial_state_for_this_episode+"|"+str(next_state)
                             ] = self.get_reward(next_state)
 
-                # chosen_next_state = str(rd.choice(
-                #    possible_next_states_for_this_state))
+                chosen_next_state = str(rd.choice(
+                    possible_next_states_for_this_state))
                 if self.epsilon_greedy:
                     e = rd.uniform(0, 1)
 
@@ -85,14 +82,13 @@ class HanoiTowerQLearning:
                             possible_next_states_for_this_state))
                     else:
                         # action with max value from current state
+                        # it's ok to randomly choose if every q is 0 because we would max on a full-0 list
                         s_a_list = {x: q_s_a[x] for x in q_s_a.keys() if x.startswith(
                             initial_state_for_this_episode+"|")}
-                        m = max(
-                            s_a_list, key=s_a_list.get)
-                        chosen_next_state = m.split('|')[1]
-                else:
-                    chosen_next_state = str(rd.choice(
-                        possible_next_states_for_this_state))
+                        if len(s_a_list) > 0:
+                            m = max(
+                                s_a_list, key=s_a_list.get)
+                            chosen_next_state = m.split('|')[1]
                 # print(chosen_next_state)
 
                 q_s1_list = {x: q_s_a[x] for x in q_s_a.keys() if x.startswith(
