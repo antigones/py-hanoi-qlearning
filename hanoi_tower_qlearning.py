@@ -7,17 +7,17 @@ from collections import defaultdict
 
 class HanoiTowerQLearning:
 
-    def __init__(self, start_state, goal_state, gamma=0.8, max_episodes=50000):
+    def __init__(self, start_state, goal_state, gamma=0.8, max_episodes=50000, min_epsilon=0.1, max_epsilon=1.0, epsilon_greedy=True):
         self.start_state = start_state
         self.goal_state = goal_state
         self.gamma = gamma
         self.max_episodes = max_episodes
 
-        self.min_epsilon = 0.01
-        self.max_epsilon = 1.0
-        self.decay_rate = 0.01
-        self.epsilon = self.min_epsilon + \
-            (self.max_epsilon - self.min_epsilon) * np.exp(-self.decay_rate * 1)
+        self.min_epsilon = min_epsilon
+        self.max_epsilon = max_epsilon
+        self.decay_rate = 0.02
+        self.epsilon = self.max_epsilon
+        self.epsilon_greedy = epsilon_greedy
 
     def get_next_allowed_moves(self, starting_state):
         next_moves = []
@@ -53,35 +53,47 @@ class HanoiTowerQLearning:
         GOAL_STATE = self.goal_state
         MAX_EPISODES = self.max_episodes
 
-        done = False
         convergence_count = 0
         q_s_a = defaultdict(lambda: 0)
         q_s_a_prec = q_s_a
         episode = 1
         # rd.seed(42)
-        while episode < MAX_EPISODES and not done:
-            initial_state_for_this_episode = rd.choice(
-                list(possible_initial_states))
 
+        scores = []
+        eps_list = []
+        rewards = {}
+        while episode <= MAX_EPISODES:
+            initial_state_for_this_episode = str(self.start_state)
+            score_per_episode = 0
             print('*** EPISODE '+str(episode)+' ***')
             while eval(initial_state_for_this_episode) != GOAL_STATE:
                 possible_next_states_for_this_state = self.get_next_allowed_moves(
                     eval(initial_state_for_this_episode))
-                rewards_for_actions = {}
-
+                rewards[initial_state_for_this_episode+"|"+str(initial_state_for_this_episode)
+                        ] = self.get_reward(initial_state_for_this_episode)
                 for next_state in possible_next_states_for_this_state:
-                    rewards_for_actions[str(next_state)
-                                        ] = self.get_reward(next_state)
-                    # possible_initial_states.add(str(next_state))
+                    rewards[initial_state_for_this_episode+"|"+str(next_state)
+                            ] = self.get_reward(next_state)
 
-                # e = rd.uniform(0, 1)
-                # if e < self.epsilon:
-                chosen_next_state = str(rd.choice(
-                    possible_next_states_for_this_state))
-                # else:
-                # m = max(
-                #        q_s_list, key=q_s_list.get)
-                #    chosen_next_state = m.split("|")[1]
+                # chosen_next_state = str(rd.choice(
+                #    possible_next_states_for_this_state))
+                if self.epsilon_greedy:
+                    e = rd.uniform(0, 1)
+
+                    if e < self.epsilon:
+                        chosen_next_state = str(rd.choice(
+                            possible_next_states_for_this_state))
+                    else:
+                        # action with max value from current state
+                        s_a_list = {x: q_s_a[x] for x in q_s_a.keys() if x.startswith(
+                            initial_state_for_this_episode+"|")}
+                        m = max(
+                            s_a_list, key=s_a_list.get)
+                        chosen_next_state = m.split('|')[1]
+                else:
+                    chosen_next_state = str(rd.choice(
+                        possible_next_states_for_this_state))
+                # print(chosen_next_state)
 
                 q_s1_list = {x: q_s_a[x] for x in q_s_a.keys() if x.startswith(
                     chosen_next_state+"|")}
@@ -92,7 +104,9 @@ class HanoiTowerQLearning:
                     m_q_s1 = 0
 
                 q_s_a[initial_state_for_this_episode + "|" +
-                      chosen_next_state] = rewards_for_actions[chosen_next_state] + (GAMMA * m_q_s1)
+                      chosen_next_state] = rewards[initial_state_for_this_episode + "|" + chosen_next_state] + (GAMMA * m_q_s1)
+                score_per_episode += q_s_a[initial_state_for_this_episode + "|" +
+                                           chosen_next_state]
                 initial_state_for_this_episode = chosen_next_state
 
             if q_s_a == q_s_a_prec:
@@ -107,15 +121,21 @@ class HanoiTowerQLearning:
                 convergence_count = 0
 
             # epsilon update
-
             self.epsilon = self.min_epsilon + \
                 (self.max_epsilon - self.min_epsilon) * \
                 np.exp(-self.decay_rate * episode)
+
+            scores.append(score_per_episode)
+            eps_list.append(self.epsilon)
             episode += 1
 
-        print(q_s_a)
+        # print(q_s_a)
 
         c = 0
+        print('*** SCORES ***')
+        for score, e in zip(scores, eps_list):
+            print(str(score).replace(".", ",") +
+                  ";"+str(e*100).replace(".", ","))
         print(self.start_state)
         next_state = str(self.start_state)
         while next_state != str(self.goal_state):
