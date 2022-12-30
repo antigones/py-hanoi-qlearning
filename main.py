@@ -7,7 +7,7 @@ def main():
         start_state=[[3, 2, 1, 0], [], []],
         goal_state=[[], [], [3, 2, 1, 0]],
         gamma=0.8,
-        max_episodes=500,
+        max_episodes=1000,
         epsilon_greedy=True)
     ht_arena.train(verbose=True)
     # print(state_space)
