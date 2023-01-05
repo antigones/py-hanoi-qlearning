@@ -4,6 +4,19 @@ import math
 import numpy as np
 from collections import defaultdict
 
+class RLKey:
+    def __init__(self, k1, k2):
+        self.k1 = k1
+        self.k2 = k2
+
+    def __hash__(self):
+        return hash((str(self.k1),str(self.k2)))
+
+    def __eq__(self, other):
+        return (self.k1, self.k2) == (other.k1, other.k2)
+
+    def __str__(self):
+        return str(self.k1)+'|'+str(self.k2)
 
 class HanoiTowerQLearning:
 
@@ -46,106 +59,76 @@ class HanoiTowerQLearning:
             return 100
         return 0
 
-    def train(self, verbose=False):
-
-        GAMMA = self.gamma
-        GOAL_STATE = self.goal_state
-        MAX_EPISODES = self.max_episodes
+    def train(self):
 
         convergence_count = 0
         q_s_a = defaultdict(lambda: 0)
         q_s_a_prec = copy.deepcopy(q_s_a)
         episode = 1
         # rd.seed(42)
-        visited_states = defaultdict(lambda: 0)
-        visited_states[str(self.start_state)] = 1
+        
         scores = []
         eps_list = []
         rewards = {}
-        while episode <= MAX_EPISODES:
-            initial_state_for_this_episode = str(self.start_state)
+        while episode <= self.max_episodes:
+            initial_state_for_this_episode = self.start_state
             score_per_episode = 0
             print('*** EPISODE '+str(episode)+' ***')
-            while eval(initial_state_for_this_episode) != GOAL_STATE:
-                possible_next_states_for_this_state = self.get_next_allowed_moves(
-                    eval(initial_state_for_this_episode))
-                rewards[initial_state_for_this_episode+"|"+str(initial_state_for_this_episode)
-                        ] = self.get_reward(initial_state_for_this_episode)
-                for next_state in possible_next_states_for_this_state:
-                    rewards[initial_state_for_this_episode+"|"+str(next_state)
-                            ] = self.get_reward(next_state)
+            while initial_state_for_this_episode != self.goal_state:
+                next_states_for_action = self.get_next_allowed_moves(initial_state_for_this_episode)
+                # k = RLKey(initial_state_for_this_episode, initial_state_for_this_episode)    
+                # rewards[k] = self.get_reward(initial_state_for_this_episode)
+                for next_state in next_states_for_action:
+                    k = RLKey(initial_state_for_this_episode, next_state)    
+                    rewards[k] = self.get_reward(next_state)
 
-                chosen_next_state = str(rd.choice(
-                    possible_next_states_for_this_state))
+                chosen_next_state = rd.choice(next_states_for_action)
                 if self.epsilon_greedy:
                     e = rd.uniform(0, 1)
-
-                    if e < self.epsilon:
-                        chosen_next_state = str(rd.choice(
-                            possible_next_states_for_this_state))
-                    else:
+                    if e > self.epsilon:
                         # action with max value from current state
                         # it's ok to randomly choose if every q is 0 because we would max on a full-0 list
-                        s_a_list = {x: q_s_a[x] for x in q_s_a.keys() if x.startswith(
-                            initial_state_for_this_episode+"|")}
+                        s_a_list = {x: q_s_a[x] for x in q_s_a.keys() if x.k1 == initial_state_for_this_episode}
                         if len(s_a_list) > 0:
-                            m = max(
-                                s_a_list, key=s_a_list.get)
-                            chosen_next_state = m.split('|')[1]
+                            m = max(s_a_list, key=s_a_list.get)
+                            chosen_next_state = m.k2
                 # print(chosen_next_state)
-                visited_states[chosen_next_state] += 1
-                q_s1_list = {x: q_s_a[x] for x in q_s_a.keys() if x.startswith(
-                    chosen_next_state+"|")}
+              
+                q_s1_list = {x: q_s_a[x] for x in q_s_a.keys() if x.k1 == chosen_next_state}
 
                 if len(q_s1_list) > 0:
                     m_q_s1 = max(q_s1_list.values())
                 else:
                     m_q_s1 = 0
 
-                q_s_a[initial_state_for_this_episode + "|" +
-                      chosen_next_state] = rewards[initial_state_for_this_episode + "|" + chosen_next_state] + (GAMMA * m_q_s1)
-                score_per_episode += q_s_a[initial_state_for_this_episode + "|" +
-                                           chosen_next_state]
+                k_qsa = RLKey(initial_state_for_this_episode, chosen_next_state)    
+                q_s_a[k_qsa] = rewards[k_qsa] + (self.gamma * m_q_s1)
+                score_per_episode += q_s_a[k]
                 initial_state_for_this_episode = chosen_next_state
 
             if q_s_a == q_s_a_prec:
-                if convergence_count > int(100):
+                if convergence_count > int(10):
                     print('** CONVERGED **')
                     break
                 else:
-                    # print(q_s_a)
-                    # print(q_s_a_prec)
                     convergence_count += 1
             else:
                 q_s_a_prec = copy.deepcopy(q_s_a)
                 convergence_count = 0
 
             # epsilon update
-            self.epsilon = self.min_epsilon + \
-                (self.max_epsilon - self.min_epsilon) * \
-                np.exp(-self.decay_rate * episode)
+            self.epsilon = self.min_epsilon + (self.max_epsilon - self.min_epsilon) * np.exp(-self.decay_rate * episode)
 
             scores.append(score_per_episode)
             eps_list.append(self.epsilon)
             episode += 1
 
-        # print(q_s_a)
+        solution_steps = [self.start_state]
+        next_state = self.start_state
+        while next_state != self.goal_state:
+            candidate_next_list = {x: q_s_a[x] for x in q_s_a.keys() if x.k1 == next_state}
+            m = max(candidate_next_list, key=candidate_next_list.get)
+            next_state = m.k2
+            solution_steps.append(next_state)
+        return solution_steps, scores, eps_list
 
-        c = 0
-
-        print('*** SCORES ***')
-        for score, e in zip(scores, eps_list):
-            print(str(score).replace(".", ",") +
-                  ";"+str(e*100).replace(".", ","))
-        print(self.start_state)
-        next_state = str(self.start_state)
-        while next_state != str(self.goal_state):
-            candidate_next_list = {x: q_s_a[x] for x in q_s_a.keys() if x.startswith(
-                next_state+"|")}
-            m = max(
-                candidate_next_list, key=candidate_next_list.get)
-            next_state = m.split("|")[1]
-            print(next_state)
-            c += 1
-        print(len(visited_states))
-        print(visited_states)
