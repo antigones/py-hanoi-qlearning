@@ -10,7 +10,7 @@ class RLKey:
         self.k2 = k2
 
     def __hash__(self):
-        return hash((str(self.k1),str(self.k2)))
+        return hash((tuple(tuple(x) for x in self.k1),tuple(tuple(x) for x in self.k2)))
 
     def __eq__(self, other):
         return (self.k1, self.k2) == (other.k1, other.k2)
